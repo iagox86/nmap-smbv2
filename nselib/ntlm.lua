@@ -91,6 +91,7 @@ Ntlm =
     o.server_challenge = ("\0"):rep(8)
     o.client_challenge = ("\0"):rep(8)
     o.enable_lm = true
+    self:set_version(0x05, 0x01, 2600, 0, 0x0f)
 
     if(username:match('\\')) then
       local parts = stdnse.strsplit('\\', username)
@@ -192,13 +193,35 @@ Ntlm =
     -- [4 bytes] SeqNum
   end,
 
+  -- [1 byte] Product major version - 0x05 or 0x06
+  -- [1 byte] Product minor version - 0x00, 0x01, or 0x02
+  -- [2 bytes] ProductBuild
+  -- [3 bytes] Reserved - 0
+  -- [1 bytes] NTLMRevisionCurrent - 0x0f = win2k3, nothing else defined
+  set_version = function(self, major, minor, build, reserved, current_revision)
+    self.version = self.version or {}
+
+    self.version.major            = major            or self.version.major
+    self.version.minor            = minor            or self.version.minor
+    self.version.build            = build            or self.version.build
+    self.version.reserved         = reserved         or self.version.reserved
+    self.version.current_revision = current_revision or self.version.current_revision
+  end,
+
   -- The version structure, if NTLMSSP_NEGOTIATE_VERSION is on. [MS-NLMP] 2.2.2.10
-  getVersion = function()
-    -- [1 byte] Product major version - 0x05 or 0x06
-    -- [1 byte] Product minor version - 0x00, 0x01, or 0x02
-    -- [2 bytes] ProductBuild
-    -- [3 bytes] Reserved - 0
-    -- [1 bytes] NTLMRevisionCurrent - 0x0f = win2k3, nothing else defined
+  get_version = function(self)
+    -- Set up the last field which is the 3-byte reserved value followed by
+    -- the one-byte current revision value
+    local last_field = 0
+    last_field = bit.bor(last_field, bit.lshift(bit.band(self.version.current_revision, 0x000000FF), 24))
+    last_field = bit.bor(last_field, bit.lshift(bit.band(self.version.reserved,         0x00FFFFFF), 0))
+
+    return bin.pack("<CCSI",
+      self.version.major,
+      self.version.minor,
+      self.version.build,
+      last_field
+    )
   end,
 
   -- The NTLM_AUTHENTICATE message is defined in [MS-NLMP] 2.2.1.3
@@ -219,47 +242,59 @@ Ntlm =
       return status, KXKEY
     end
 
-    if(bit.band(self.flags, NTLMSSP_NEGOTIATE_KEY_EXCH) ~= 0) then
+    if(bit.band(self.flags, NTLMSSP_NEGOTIATE_KEY_EXCH) == 0) then
       session_key = ''
     else
       session_key = openssl.encrypt("RC4", KXKEY, nil, self.random_session_key)
     end
 
     workstation = self:encode_string(self.workstation)
-    version = '' -- TODO
+
+    version = ''
+    if(bit.band(self.flags, NTLMSSP_NEGOTIATE_VERSION)) then
+      version = self:get_version()
+    end
+
     signature = '' -- TODO
 
-    -- TODO: Figure out a better way to calculate the 0x40
+    -- This is where the 'payload' starts
     len = 0x40 + #version + #signature
 
     new_blob = bin.pack("<AISSISSISSISSISSISSIIAA",
       "NTLMSSP\0",                                                -- Signature
       NtLmAuthenticate,                                           -- MessageType
+
       #lanman,                                                    -- LmChallengeResponseLen (0 if not using LM)
       #lanman,                                                    -- LmChallengeResponseMaxLen
-      len,                                                        -- LmChallengeResponseOffset
+      len + #domain + #username + #workstation,                   -- LmChallengeResponseOffset
+
       #ntlm,                                                      -- NtChallengeResponseLen (0 if not using NT)
       #ntlm,                                                      -- NtChallengeResponseMaxLen
-      len + #lanman,                                              -- NtChallengeResponseOffset
+      len + #domain + #username + #workstation + #lanman,         -- NtChallengeResponseOffset
+
       #domain,                                                    -- DomainNameLen
       #domain,                                                    -- DomainNameMaxLen
-      len + #lanman + #ntlm,                                      -- DomainNameOffset
+      len,                                                        -- DomainNameOffset
+
       #username,                                                  -- UserNameLen
       #username,                                                  -- UserNameMaxLen
-      len + #lanman + #ntlm + #domain,                            -- UserNameOffset
+      len + #domain,                                              -- UserNameOffset
+
       #workstation,                                               -- WorkstationLength
       #workstation,                                               -- WorkstationMaxLength
-      len + #lanman + #ntlm + #domain + #username,                -- WorkstationOffset
+      len + #domain + #username,                                  -- WorkstationOffset
+
       #session_key,                                               -- EncryptedRandomSessionKeyBufferLen
       #session_key,                                               -- EncryptedRandomSessionKeyBufferMaxLen
-      len + #lanman + #ntlm + #domain + #username + #workstation, -- EncryptedRandomSessionKeyBufferOffset
+      len + #domain + #username + #workstation + #lanman + #ntlm, -- EncryptedRandomSessionKeyBufferOffset
+
       self.flags,                                                 -- NegotiateFlags
       version,                                                    -- Version
       signature                                                   -- Signature
     )
 
-    new_blob = new_blob .. bin.pack("AAAAAA", lanman, ntlm, domain, username, workstation, session_key)
-    -- domain, then user, then workstation?
+    --new_blob = new_blob .. bin.pack("AAAAAA", lanman, ntlm, domain, username, workstation, session_key)
+    new_blob = new_blob .. bin.pack("AAAAAA", domain, username, workstation, lanman, ntlm, session_key)
 
     return true, new_blob
   end,
@@ -710,6 +745,8 @@ Ntlm =
     -- [MS-NLMP] 4.2.2.3
     i:parse_ntlm_challenge("\x4e\x54\x4c\x4d\x53\x53\x50\x00\x02\x00\x00\x00\x0c\x00\x0c\x00\x38\x00\x00\x00\x33\x82\x02\xe2\x01\x23\x45\x67\x89\xab\xcd\xef\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x06\x00\x70\x17\x00\x00\x00\x0f\x53\x00\x65\x00\x72\x00\x76\x00\x65\x00\x72\x00")
 
+    -- Flags from the example pcap (TODO: See why these don't match the flags I expect)
+    i.flags = 0xe2808235
     local status, authenticate = i:get_ntlm_authenticate()
     Ntlm.test_call("ntlm_authenticate", authenticate, "\x4e\x54\x4c\x4d\x53\x53\x50\x00\x03\x00\x00\x00\x18\x00\x18\x00\x6c\x00\x00\x00\x18\x00\x18\x00\x84\x00\x00\x00\x0c\x00\x0c\x00\x48\x00\x00\x00\x08\x00\x08\x00\x54\x00\x00\x00\x10\x00\x10\x00\x5c\x00\x00\x00\x10\x00\x10\x00\x9c\x00\x00\x00\x35\x82\x80\xe2\x05\x01\x28\x0a\x00\x00\x00\x0f\x44\x00\x6f\x00\x6d\x00\x61\x00\x69\x00\x6e\x00\x55\x00\x73\x00\x65\x00\x72\x00\x43\x00\x4f\x00\x4d\x00\x50\x00\x55\x00\x54\x00\x45\x00\x52\x00\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13\x67\xc4\x30\x11\xf3\x02\x98\xa2\xad\x35\xec\xe6\x4f\x16\x33\x1c\x44\xbd\xbe\xd9\x27\x84\x1f\x94\x51\x88\x22\xb1\xb3\xf3\x50\xc8\x95\x86\x82\xec\xbb\x3e\x3c\xb7")
 
