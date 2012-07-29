@@ -6,6 +6,7 @@
 local nmap = require "nmap"
 local stdnse = require "stdnse"
 local string = require "string"
+local nsedebug = require "nsedebug"
 
 _ENV = stdnse.module("test", stdnse.seeall)
 
@@ -23,7 +24,7 @@ Test =
   end,
 
   display = function(self, header, value, options)
-    io.write(header .. "\n")
+    io.write(header)
     if(options.binary) then
       io.write("\n")
       nsedebug.print_hex(value)
@@ -42,9 +43,9 @@ Test =
     if(value ~= expected) then
       self.fail = self.fail + 1
 
-      io.write("FAIL: " .. name .. ": ")
+      io.write("FAIL: " .. name .. ":\n")
       self:display("Expected: ", expected, options)
-      self:display("Found:    ", found, options)
+      self:display("Found:    ", value, options)
     else
       self.success = self.success + 1
       io.write("PASS: " .. name)
@@ -58,10 +59,10 @@ Test =
 
   report = function(self)
     print(("-"):rep(80))
-    print("SUCCESS  : " .. self.success)
-    print("FAIL     : " .. self.fail)
+    print(string.format("SUCCESS  : %d", self.success))
+    print(string.format("FAIL     : %d", self.fail))
     print("--------")
-    print("RESULT   : " .. (self.success / (self.success + self.fail)))
+    print(string.format("RESULT   : %d / %d => %.2f%%", self.success, self.fail, 100 * self.success / (self.success + self.fail)))
     print(("-"):rep(80))
   end
 }
