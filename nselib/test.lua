@@ -19,6 +19,7 @@ Test =
 
     o.success = 0
     o.fail = 0
+    o.total = 0
 
     return o
   end,
@@ -39,6 +40,8 @@ Test =
 
   call = function(self, name, value, expected, options)
     options = options or {}
+
+    self.total = self.total + 1
 
     if(value ~= expected) then
       self.fail = self.fail + 1
@@ -62,7 +65,7 @@ Test =
     print(string.format("SUCCESS  : %d", self.success))
     print(string.format("FAIL     : %d", self.fail))
     print("--------")
-    print(string.format("RESULT   : %d / %d => %.2f%%", self.success, self.fail, 100 * self.success / (self.success + self.fail)))
+    print(string.format("RESULT   : %d / %d => %.2f%%", self.success, self.total, 100 * self.success / self.total))
     print(("-"):rep(80))
   end
 }
