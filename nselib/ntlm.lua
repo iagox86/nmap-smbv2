@@ -141,6 +141,10 @@ Ntlm =
     self.flags = flags
   end,
 
+  get_flags = function(self)
+    return self.flags
+  end,
+
   -- The NTLM_NEGOTIATE message is defined in [MS-NLMP] 2.2.1.1
   get_ntlm_negotiate = function(self)
 
@@ -675,70 +679,84 @@ Ntlm =
 
     -- [MS-NLMP] 4.2.1 defines these values
     local i = Ntlm:new('Domain\\User', 'Password')
-    i:set_server("Server")
-    i:set_workstation("COMPUTER")
-    i:set_time(1)
-    i:set_client_challenge("\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa")
-    i:set_server_challenge("\x01\x23\x45\x67\x89\xab\xcd\xef")
-    i:set_random_session_key("\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55")
+    test:call('set_server("Server")', i.set_server, {i, "Server"}, {})
+    test:call('set_workstation', i.set_workstation, {i, 'COMPUTER'}, {})
+    test:call('set_time', i.set_time, {i, 1}, {})
+    test:call('set_client_challenge', i.set_client_challenge, {i, "\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa"}, {})
+    test:call('set_server_challenge', i.set_server_challenge, {i, "\x01\x23\x45\x67\x89\xab\xcd\xef"}, {})
+    test:call('set_random_session_key', i.set_random_session_key, {i, "\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55"}, {})
+
     -- [MS-NLMP] 4.2.2
-    i:set_flags(bit.bor(NTLMSSP_NEGOTIATE_KEY_EXCH, NTLMSSP_NEGOTIATE_56, NTLMSSP_NEGOTIATE_128, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_TARGET_TYPE_SERVER, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMSSP_NEGOTIATE_NTLM, NTLMSSP_NEGOTIATE_SEAL, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_OEM, NTLMSSP_NEGOTIATE_UNICODE))
-    i:print()
+    test:call('set_flags', i.set_flags, {i, bit.bor(NTLMSSP_NEGOTIATE_KEY_EXCH, NTLMSSP_NEGOTIATE_56, NTLMSSP_NEGOTIATE_128, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_TARGET_TYPE_SERVER, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMSSP_NEGOTIATE_NTLM, NTLMSSP_NEGOTIATE_SEAL, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_OEM, NTLMSSP_NEGOTIATE_UNICODE)}, {})
 
     -- [MS-NLMP] 4.2.2.1.1
-    local status, result = i:LMOWFv1()
-    test:check("LMOWFv1", result, "\xe5\x2c\xac\x67\x41\x9a\x9a\x22\x4a\x3b\x10\x8f\x3f\xa6\xcb\x6d", {binary = true})
+    test:call('LMOWFv1', i.LMOWFv1, {i}, {true, "\xe5\x2c\xac\x67\x41\x9a\x9a\x22\x4a\x3b\x10\x8f\x3f\xa6\xcb\x6d"})
 
     -- [MS-NLMP] 4.2.2.1.2
-    local status, result = i:NTOWFv1()
-    test:check("NTOWFv1", result, "\xa4\xf4\x9c\x40\x65\x10\xbd\xca\xb6\x82\x4e\xe7\xc3\x0f\xd8\x52", {binary = true})
+    test:call('NTOWFv1', i.NTOWFv1, {i}, {true, "\xa4\xf4\x9c\x40\x65\x10\xbd\xca\xb6\x82\x4e\xe7\xc3\x0f\xd8\x52"})
 
     -- [MS-NLMP] 4.2.2.1.3
-    local status, result = i:SessionBaseKey()
-    test:check("SessionBaseKey", result, "\xd8\x72\x62\xb0\xcd\xe4\xb1\xcb\x74\x99\xbe\xcc\xcd\xf1\x07\x84", {binary = true})
-    test:check("KeyExchangeKey", result, "\xd8\x72\x62\xb0\xcd\xe4\xb1\xcb\x74\x99\xbe\xcc\xcd\xf1\x07\x84", {binary = true})
+    test:call('SessionBaseKey', i.SessionBaseKey, {i}, {true, "\xd8\x72\x62\xb0\xcd\xe4\xb1\xcb\x74\x99\xbe\xcc\xcd\xf1\x07\x84"})
+    test:call('KeyExchangeKey', i.SessionBaseKey, {i}, {true, "\xd8\x72\x62\xb0\xcd\xe4\xb1\xcb\x74\x99\xbe\xcc\xcd\xf1\x07\x84"})
 
     -- [MS-NLMP] 4.2.2.2
-    local status, lm_response, ntlm_response = i:ComputeResponse()
-    -- [MS-NLMP] 4.2.2.2.1
-    test:check("NtChallengeResponse", ntlm_response, "\x67\xc4\x30\x11\xf3\x02\x98\xa2\xad\x35\xec\xe6\x4f\x16\x33\x1c\x44\xbd\xbe\xd9\x27\x84\x1f\x94", {binary = true})
-    test:check("LmChallengeResponse", lm_response,   "\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13", {binary = true})
+    test:call('ComputeResponse', i.ComputeResponse, {i}, {true, 
+      -- Lanman:
+      "\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13",
+      -- NTLM:
+      "\x67\xc4\x30\x11\xf3\x02\x98\xa2\xad\x35\xec\xe6\x4f\x16\x33\x1c\x44\xbd\xbe\xd9\x27\x84\x1f\x94"
+    })
 
     -- [MS-NLMP] 4.2.2.2.2
-    local status, kxkey = i:KXKEY()
-    test:check("KXKEY", lm_response,   "\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13", {binary = true})
-    i.flags = bit.bor(i.flags, NTLMSSP_NEGOTIATE_LM_KEY)
-    local status, sealkey = i:KXKEY()
-    test:check("KXKEY (LM_KEY)", sealkey, "\xb0\x9e\x37\x9f\x7f\xbe\xcb\x1e\xaf\x0a\xfd\xcb\x03\x83\xc8\xa0", {binary = true})
-    i.flags = bit.band(i.flags, bit.bnot(NTLMSSP_NEGOTIATE_LM_KEY))
+    -- TODO: WTF did I do here?
+    --local status, kxkey = i:KXKEY()
+    --test:check("KXKEY", lm_response,   "\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13", {binary = true})
+
+    -- Set the flags to LM_KEY
+    test:call('set_flags', i.set_flags, {i, bit.bor(i:get_flags(), NTLMSSP_NEGOTIATE_LM_KEY)}, {})
+
+    test:call('KXKEY (LM_KEY)', i.KXKEY, {i}, {
+      true,
+      "\xb0\x9e\x37\x9f\x7f\xbe\xcb\x1e\xaf\x0a\xfd\xcb\x03\x83\xc8\xa0"
+    })
+
+    test:call('set_flags', i.set_flags, {i, bit.band(i:get_flags(), bit.bnot(NTLMSSP_NEGOTIATE_LM_KEY))}, {})
 
     -- [MS-NLMP] 4.2.2.2.3
     local result, kxkey = i:KXKEY()
     local rc4_handle = openssl.rc4(kxkey)
-    local encrypted_session_key = rc4_handle(i.random_session_key)
-    test:check("RandomSessionKey encrypted w/ KXKEY [1]", encrypted_session_key, "\x51\x88\x22\xb1\xb3\xf3\x50\xc8\x95\x86\x82\xec\xbb\x3e\x3c\xb7", {binary = true})
+    test:call('RandomSessionKey encrypted w/ KXKEY [1]', rc4_handle, {i.random_session_key}, {
+      "\x51\x88\x22\xb1\xb3\xf3\x50\xc8\x95\x86\x82\xec\xbb\x3e\x3c\xb7"
+    })
 
-    i.flags = bit.bor(i.flags, NTLMSSP_NEGOTIATE_NON_NT_SESSION_KEY)
+    test:call('set_flags', i.set_flags, {i, bit.bor(i:get_flags(), NTLMSSP_NEGOTIATE_NON_NT_SESSION_KEY)}, {})
+
     local result, kxkey = i:KXKEY()
     local rc4_handle = openssl.rc4(kxkey)
-    local encrypted_session_key = rc4_handle(i.random_session_key)
-    test:check("RandomSessionKey encrypted w/ KXKEY [2]", encrypted_session_key, "\x74\x52\xca\x55\xc2\x25\xa1\xca\x04\xb4\x8f\xae\x32\xcf\x56\xfc", {binary = true})
-    i.flags = bit.band(i.flags, bit.bnot(NTLMSSP_NEGOTIATE_NON_NT_SESSION_KEY))
+    test:call('RandomSessionKey encrypted w/ KXKEY [2]', rc4_handle, {i.random_session_key}, {
+      "\x74\x52\xca\x55\xc2\x25\xa1\xca\x04\xb4\x8f\xae\x32\xcf\x56\xfc"
+    })
 
-    i.flags = bit.bor(i.flags, NTLMSSP_NEGOTIATE_LM_KEY)
+    test:call('set_flags', i.set_flags, {i, bit.band(i:get_flags(), bit.bnot(NTLMSSP_NEGOTIATE_NON_NT_SESSION_KEY))}, {})
+    test:call('set_flags', i.set_flags, {i, bit.bor(i:get_flags(), NTLMSSP_NEGOTIATE_LM_KEY)}, {})
+
     local result, kxkey = i:KXKEY()
     local rc4_handle = openssl.rc4(kxkey)
-    local encrypted_session_key = rc4_handle(i.random_session_key)
-    test:check("RandomSessionKey encrypted w/ KXKEY [3]", encrypted_session_key, "\x4c\xd7\xbb\x57\xd6\x97\xef\x9b\x54\x9f\x02\xb8\xf9\xb3\x78\x64", {binary = true})
-    i.flags = bit.band(i.flags, bit.bnot(NTLMSSP_NEGOTIATE_LM_KEY))
+    test:call("RandomSessionKey encrypted w/ KXKEY [3]", rc4_handle, {i.random_session_key}, {
+      "\x4c\xd7\xbb\x57\xd6\x97\xef\x9b\x54\x9f\x02\xb8\xf9\xb3\x78\x64"
+    })
+
+    test:call('set_flags', i.set_flags, {i, bit.band(i:get_flags(), bit.bnot(NTLMSSP_NEGOTIATE_LM_KEY))}, {})
 
     -- [MS-NLMP] 4.2.2.3
-    i:parse_ntlm_challenge("\x4e\x54\x4c\x4d\x53\x53\x50\x00\x02\x00\x00\x00\x0c\x00\x0c\x00\x38\x00\x00\x00\x33\x82\x02\xe2\x01\x23\x45\x67\x89\xab\xcd\xef\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x06\x00\x70\x17\x00\x00\x00\x0f\x53\x00\x65\x00\x72\x00\x76\x00\x65\x00\x72\x00")
+    test:call('parse_ntlm_challenge', i.parse_ntlm_challenge, {i, "\x4e\x54\x4c\x4d\x53\x53\x50\x00\x02\x00\x00\x00\x0c\x00\x0c\x00\x38\x00\x00\x00\x33\x82\x02\xe2\x01\x23\x45\x67\x89\xab\xcd\xef\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x06\x00\x70\x17\x00\x00\x00\x0f\x53\x00\x65\x00\x72\x00\x76\x00\x65\x00\x72\x00"}, {
+      true
+    })
 
     -- Flags from the example pcap (TODO: See why these don't match the flags I expect)
     i.flags = 0xe2808235
-    local status, authenticate = i:get_ntlm_authenticate()
-    test:check("ntlm_authenticate", authenticate, "\x4e\x54\x4c\x4d\x53\x53\x50\x00\x03\x00\x00\x00\x18\x00\x18\x00\x6c\x00\x00\x00\x18\x00\x18\x00\x84\x00\x00\x00\x0c\x00\x0c\x00\x48\x00\x00\x00\x08\x00\x08\x00\x54\x00\x00\x00\x10\x00\x10\x00\x5c\x00\x00\x00\x10\x00\x10\x00\x9c\x00\x00\x00\x35\x82\x80\xe2\x05\x01\x28\x0a\x00\x00\x00\x0f\x44\x00\x6f\x00\x6d\x00\x61\x00\x69\x00\x6e\x00\x55\x00\x73\x00\x65\x00\x72\x00\x43\x00\x4f\x00\x4d\x00\x50\x00\x55\x00\x54\x00\x45\x00\x52\x00\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13\x67\xc4\x30\x11\xf3\x02\x98\xa2\xad\x35\xec\xe6\x4f\x16\x33\x1c\x44\xbd\xbe\xd9\x27\x84\x1f\x94\x51\x88\x22\xb1\xb3\xf3\x50\xc8\x95\x86\x82\xec\xbb\x3e\x3c\xb7", {binary = true})
+
+    test:call('ntlm_authenticate', i.get_ntlm_authenticate, {i}, {true, "\x4e\x54\x4c\x4d\x53\x53\x50\x00\x03\x00\x00\x00\x18\x00\x18\x00\x6c\x00\x00\x00\x18\x00\x18\x00\x84\x00\x00\x00\x0c\x00\x0c\x00\x48\x00\x00\x00\x08\x00\x08\x00\x54\x00\x00\x00\x10\x00\x10\x00\x5c\x00\x00\x00\x10\x00\x10\x00\x9c\x00\x00\x00\x35\x82\x80\xe2\x05\x01\x28\x0a\x00\x00\x00\x0f\x44\x00\x6f\x00\x6d\x00\x61\x00\x69\x00\x6e\x00\x55\x00\x73\x00\x65\x00\x72\x00\x43\x00\x4f\x00\x4d\x00\x50\x00\x55\x00\x54\x00\x45\x00\x52\x00\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13\x67\xc4\x30\x11\xf3\x02\x98\xa2\xad\x35\xec\xe6\x4f\x16\x33\x1c\x44\xbd\xbe\xd9\x27\x84\x1f\x94\x51\x88\x22\xb1\xb3\xf3\x50\xc8\x95\x86\x82\xec\xbb\x3e\x3c\xb7"})
 
     test:report()
   end
