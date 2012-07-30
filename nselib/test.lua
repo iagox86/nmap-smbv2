@@ -38,24 +38,37 @@ Test =
     end
   end,
 
-  call = function(self, name, value, expected, options)
+  check = function(self, name, values, expected_values, options)
+    local i, value, expected
     options = options or {}
 
-    self.total = self.total + 1
+    if(type(values) ~= 'table') then
+      values = {values}
+    end
+    if(type(expected_values) ~= 'table') then
+      expected_values = {expected_values}
+    end
 
-    if(value ~= expected) then
-      self.fail = self.fail + 1
+    for i = 1, #values do
+      value = values[i]
+      expected = expected_values[i]
 
-      io.write("FAIL: " .. name .. ":\n")
-      self:display("Expected: ", expected, options)
-      self:display("Found:    ", value, options)
-    else
-      self.success = self.success + 1
-      io.write("PASS: " .. name)
-      if(options.display_pass) then
-        self:display("Data:     ", expected, options)
+      self.total = self.total + 1
+
+      if(value ~= expected) then
+        self.fail = self.fail + 1
+
+        io.write("FAIL: " .. name .. ":\n")
+        self:display("Expected: ", expected, options)
+        self:display("Found:    ", value, options)
       else
-        io.write("\n")
+        self.success = self.success + 1
+        io.write("PASS: " .. name)
+        if(options.display_pass) then
+          self:display("Data:     ", expected, options)
+        else
+          io.write("\n")
+        end
       end
     end
   end,
