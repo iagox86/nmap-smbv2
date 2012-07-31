@@ -422,6 +422,7 @@ Ntlm =
 
 ---[MS-NLMP] 3.3.1
     if(bit.band(self.flags, NTLMSSP_NEGOTIATE_NTLM)) then
+      print("AAA")
       -- LM_RESPONSE, defined in [MS-NLMP] 2.2.2.3
       -- [24 bytes] LmChallengeResponse [MS-NLMP] 3.3.1
       local status, ResponseKeyLM = self:LMOWFv1()
@@ -452,6 +453,8 @@ Ntlm =
 
       return true, LmChallengeResponse, NtChallengeResponse
     else
+      print("ERROR: Not implemented!")
+      os.exit()
       -- LMv2_RESPONSE, defined in [MS-NLMP] 2.2.2.4
       -- [16 bytes] LmChallengeResponse [MS-NLMP] 3.3.2 [TODO]
       -- [8 bytes]  client_challenge [MS-NLM{] 3.1.5.1.2 [TODO]
@@ -790,6 +793,12 @@ Ntlm =
 
     test:call('[4.2.4.1.1] NTOWFv2', i.NTOWFv2, {i}, {true, "\x0c\x86\x8a\x40\x3b\xfd\x7a\x93\xa3\x00\x1e\xf2\x2e\xf0\x2e\x3f"})
     test:call('[4.2.4.1.1] LMOWFv2', i.LMOWFv2, {i}, {true, "\x0c\x86\x8a\x40\x3b\xfd\x7a\x93\xa3\x00\x1e\xf2\x2e\xf0\x2e\x3f"})
+    test:call('[4.2.4.2.1] ComputeResponse', i.ComputeResponse, {i}, {
+      true,
+      "\x86\xc3\x50\x97\xac\x9c\xec\x10\x25\x54\x76\x4a\x57\xcc\xcc\x19\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa",
+      ""
+    })
+
 
     test:report()
   end
