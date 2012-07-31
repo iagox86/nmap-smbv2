@@ -496,7 +496,7 @@ Ntlm =
       return false, "SMB: OpenSSL not present"
     end
 
-    return true, openssl.hmac("MD5", openssl.md4(self.to_unicode(self.password)), string.upper(self.username .. self.domain))
+    return true, openssl.hmac("MD5", openssl.md4(self.to_unicode(self.password)), self.to_unicode(string.upper(self.username) .. self.domain))
   end,
 
   -- [MS-NLMP] 3.3.2
@@ -783,7 +783,13 @@ Ntlm =
 
     test:call('[4.2.3.3]   ntlm_authentiate', i.get_ntlm_authenticate, {i}, {true, "\x4e\x54\x4c\x4d\x53\x53\x50\x00\x03\x00\x00\x00\x18\x00\x18\x00\x6c\x00\x00\x00\x18\x00\x18\x00\x84\x00\x00\x00\x0c\x00\x0c\x00\x48\x00\x00\x00\x08\x00\x08\x00\x54\x00\x00\x00\x10\x00\x10\x00\x5c\x00\x00\x00\x00\x00\x00\x00\x9c\x00\x00\x00\x35\x82\x08\x82\x05\x01\x28\x0a\x00\x00\x00\x0f\x44\x00\x6f\x00\x6d\x00\x61\x00\x69\x00\x6e\x00\x55\x00\x73\x00\x65\x00\x72\x00\x43\x00\x4f\x00\x4d\x00\x50\x00\x55\x00\x54\x00\x45\x00\x52\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x75\x37\xf8\x03\xae\x36\x71\x28\xca\x45\x82\x04\xbd\xe7\xca\xf8\x1e\x97\xed\x26\x83\x26\x72\x32"})
 
+    -- [MS-NLMP] 4.2.3.4 TODO
 
+    -- [MS-NLMP] 4.2.4
+    test:call('[4.2.4]     set_flags', i.set_flags, {i, bit.bor(NTLMSSP_NEGOTIATE_KEY_EXCH, NTLMSSP_NEGOTIATE_56, NTLMSSP_NEGOTIATE_128, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_NEGOTIATE_TARGET_INFO, NTLMSSP_NEGOTIATE_EXTENDED_SESSION_SECURITY, NTLMSSP_TARGET_TYPE_SERVER, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMSSP_NEGOTIATE_NTLM, NTLMSSP_NEGOTIATE_SEAL, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_OEM, NTLMSSP_NEGOTIATE_UNICODE)}, {})
+
+    test:call('[4.2.4.1.1] NTOWFv2', i.NTOWFv2, {i}, {true, "\x0c\x86\x8a\x40\x3b\xfd\x7a\x93\xa3\x00\x1e\xf2\x2e\xf0\x2e\x3f"})
+    test:call('[4.2.4.1.1] LMOWFv2', i.LMOWFv2, {i}, {true, "\x0c\x86\x8a\x40\x3b\xfd\x7a\x93\xa3\x00\x1e\xf2\x2e\xf0\x2e\x3f"})
 
     test:report()
   end
