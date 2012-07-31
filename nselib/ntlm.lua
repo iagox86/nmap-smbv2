@@ -437,8 +437,10 @@ Ntlm =
       end
 
       if(bit.band(self.flags, NTLMSSP_NEGOTIATE_EXTENDED_SESSION_SECURITY) ~= 0) then
-        status, NtChallengeResponse = Ntlm.DESL(ResponseKeyNT, string.sub(openssl.md5(ServerChallenge .. ClientChallenge), 1, 7))
-        LmChallengeResponse = ClientChallenge .. string.rep("\x00", 16)
+        status, NtChallengeResponse = Ntlm.DESL(ResponseKeyNT, string.sub(openssl.md5(self.server_challenge .. self.client_challenge), 1, 8))
+        LmChallengeResponse = self.client_challenge .. string.rep("\x00", 16)
+
+        return true, LmChallengeResponse, NtChallengeResponse
       else
         status, NtChallengeResponse = Ntlm.DESL(ResponseKeyNT, self.server_challenge)
         if(self.enable_lm) then
@@ -452,7 +454,7 @@ Ntlm =
     else
       -- LMv2_RESPONSE, defined in [MS-NLMP] 2.2.2.4
       -- [16 bytes] LmChallengeResponse [MS-NLMP] 3.3.2 [TODO]
-      -- [8 bytes]  ClientChallenge [MS-NLM{] 3.1.5.1.2 [TODO]
+      -- [8 bytes]  client_challenge [MS-NLM{] 3.1.5.1.2 [TODO]
       --
       -- NTLMv2_CLIENT_CHALLENGE, defined in [MS-NLMP] 2.2.2.7
       -- [1 byte] RespType - Current version (1)
@@ -463,10 +465,10 @@ Ntlm =
       -- [8 bytes] ChallengeFromClient - Client challenge ([MS-NLMP] 3.1.5.1.2)
       -- [4 bytes] Reserved3 - 0
       -- [variable] AvPairs - A series of AV-PAIR structures ([MS-NLMP] 2.2.2.1), terminated by MsvAvEOL
---    temp = Responserversion .. HiResponserversion .. Z(6) .. Time .. ClientChallenge .. Z(4) .. ServerName .. Z(4)
+--    temp = Responserversion .. HiResponserversion .. Z(6) .. Time .. self.client_challenge .. Z(4) .. ServerName .. Z(4)
 --    NTProofStr = openssl.hmac("MD5", ResponseKeyNT, CHALLENGE_MESSAGE.ServerChallenge .. temp)
 --    NtChallengeResponse = NTProofStr .. temp
---    LmChallengeResponse = oenssl.hmac("MD5", ResponseKeyLM, CHALLENGE_MESSAGE.ServerChallenge .. ClientChallenge) .. ClientChallenge
+--    LmChallengeResponse = oenssl.hmac("MD5", ResponseKeyLM, CHALLENGE_MESSAGE.ServerChallenge .. self.client_challenge) .. self.client_challenge
     end
   end,
 
@@ -517,10 +519,12 @@ Ntlm =
 --end
 --
 ---- [MS-NLMP] 3.4.3
---function SEAL(Handle, SigningKey, Seqnum, Message)
---  SealedMessage = RC4(Handle, Message)
---  Signature = MAC(Handle, SigningKey, SeqNum, Message)
---end
+  SEAL = function(self, rc4_context, signing_key, seq_num, message)
+    sealed_message = rc4_context(message)
+    --Signature = MAC(Handle, SigningKey, SeqNum, Message)
+
+    return true, sealed_message
+  end,
 
 --  MAC = function(self, Handle, SigningKey, SeqNum, Message)
 --    if(bit.band(flags, NTLMSSP_NEGOTIATE_EXTENDED_SESSION_SECURITY) ~= 0) then
@@ -555,8 +559,7 @@ Ntlm =
     local result, LMOWF = self:LMOWFv1()
 
     if(bit.band(self.flags, NTLMSSP_NEGOTIATE_NTLM) ~= 0 and bit.band(self.flags, NTLMSSP_NEGOTIATE_EXTENDED_SESSION_SECURITY) ~= 0) then
-      -- TODO
-      --return true, openssl.hmac("MD5", session_base_key, self.server_challenge .. string.sub(LmChallengeResponse, 1, 7))
+      return true, openssl.hmac("MD5", session_base_key, self.server_challenge .. string.sub(LmChallengeResponse, 1, 8))
     elseif(bit.band(self.flags, NTLMSSP_NEGOTIATE_NTLM) ~= 0) then
       if(bit.band(self.flags, NTLMSSP_NEGOTIATE_LM_KEY) ~= 0) then
         local key1 = string.sub(LMOWF, 1, 7)
@@ -707,11 +710,6 @@ Ntlm =
       "\x67\xc4\x30\x11\xf3\x02\x98\xa2\xad\x35\xec\xe6\x4f\x16\x33\x1c\x44\xbd\xbe\xd9\x27\x84\x1f\x94"
     })
 
-    -- [MS-NLMP] 4.2.2.2.2
-    -- TODO: WTF did I do here?
-    --local status, kxkey = i:KXKEY()
-    --test:check("KXKEY", lm_response,   "\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13", {binary = true})
-
     -- Set the flags to LM_KEY
     test:call('set_flags', i.set_flags, {i, bit.bor(i:get_flags(), NTLMSSP_NEGOTIATE_LM_KEY)}, {})
 
@@ -757,6 +755,22 @@ Ntlm =
     i.flags = 0xe2808235
 
     test:call('ntlm_authenticate', i.get_ntlm_authenticate, {i}, {true, "\x4e\x54\x4c\x4d\x53\x53\x50\x00\x03\x00\x00\x00\x18\x00\x18\x00\x6c\x00\x00\x00\x18\x00\x18\x00\x84\x00\x00\x00\x0c\x00\x0c\x00\x48\x00\x00\x00\x08\x00\x08\x00\x54\x00\x00\x00\x10\x00\x10\x00\x5c\x00\x00\x00\x10\x00\x10\x00\x9c\x00\x00\x00\x35\x82\x80\xe2\x05\x01\x28\x0a\x00\x00\x00\x0f\x44\x00\x6f\x00\x6d\x00\x61\x00\x69\x00\x6e\x00\x55\x00\x73\x00\x65\x00\x72\x00\x43\x00\x4f\x00\x4d\x00\x50\x00\x55\x00\x54\x00\x45\x00\x52\x00\x98\xde\xf7\xb8\x7f\x88\xaa\x5d\xaf\xe2\xdf\x77\x96\x88\xa1\x72\xde\xf1\x1c\x7d\x5c\xcd\xef\x13\x67\xc4\x30\x11\xf3\x02\x98\xa2\xad\x35\xec\xe6\x4f\x16\x33\x1c\x44\xbd\xbe\xd9\x27\x84\x1f\x94\x51\x88\x22\xb1\xb3\xf3\x50\xc8\x95\x86\x82\xec\xbb\x3e\x3c\xb7"})
+
+    -- [MS-NLMP] 4.2.2.4
+    -- TODO: No effin' clue how this thing works!
+    --test:call('SEAL', i.SEAL, {i, rc4_handle, nil, "\0\0\0\0", "P\x00l\x00a\x00i\x00n\x00t\x00e\x00x\x00t\x00"}, {true, 'A'})
+
+    -- [MS-NLMP] 4.2.3
+    test:call('set_flags', i.set_flags, {i, bit.bor(NTLMSSP_NEGOTIATE_56, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_NEGOTIATE_EXTENDED_SESSION_SECURITY, NTLMSSP_TARGET_TYPE_SERVER, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMSSP_NEGOTIATE_NTLM, NTLMSSP_NEGOTIATE_SEAL, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_OEM, NTLMSSP_NEGOTIATE_UNICODE)}, {})
+
+    -- [MS-NLMP] 4.2.3.1.1
+    test:call('[4.2.3.1.1] NTOWFv1', i.NTOWFv1, {i}, {true, "\xa4\xf4\x9c\x40\x65\x10\xbd\xca\xb6\x82\x4e\xe7\xc3\x0f\xd8\x52"})
+
+    -- [MS-NLMP] 4.2.3.1.2
+    test:call('[4.2.3.1.2] SessionBaseKey', i.SessionBaseKey, {i}, {true, "\xd8\x72\x62\xb0\xcd\xe4\xb1\xcb\x74\x99\xbe\xcc\xcd\xf1\x07\x84"})
+
+    -- [MS-NLMP] 4.2.3.1.3
+    test:call('[4.2.3.1.3] KeyExchangeKey', i.KXKEY, {i}, {true, "\xeb\x93\x42\x9a\x8b\xd9\x52\xf8\xb8\x9c\x55\xb8\x7f\x47\x5e\xdc"})
 
     test:report()
   end

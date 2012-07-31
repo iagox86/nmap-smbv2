@@ -25,17 +25,18 @@ Test =
   end,
 
   display = function(self, header, value, options)
+    -- TODO: Detect the format and print it appropriately
     io.write(header)
-    if(options.binary) then
+--    if(options.binary) then
       io.write("\n")
       nsedebug.print_hex(value)
-    elseif(options.hex) then
-      io.write(string.format("%x", value) .. "\n")
-    elseif(options.format_string) then
-      io.write(string.format(format_string, value) .. "\n")
-    else
-      io.write(tostring(value) .. "\n")
-    end
+--    elseif(options.hex) then
+--      io.write(string.format("%x", value) .. "\n")
+--    elseif(options.format_string) then
+--      io.write(string.format(format_string, value) .. "\n")
+--    else
+--      io.write(tostring(value) .. "\n")
+--    end
   end,
 
   call = function(self, name, func, args, expected_values, options)
@@ -99,7 +100,7 @@ Test =
 
         io.write("FAIL (return #" .. i .. "): " .. name .. ":\n")
         self:display("Expected: ", expected, options)
-        self:display("Found:    ", value, options)
+        self:display("Found:    \n", value, options)
         return false
       end
     end
